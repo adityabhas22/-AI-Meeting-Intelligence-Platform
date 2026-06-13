@@ -20,7 +20,7 @@ const plexMono = IBM_Plex_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The Record — Meeting Intelligence",
+  title: "The Record · Meeting Intelligence",
   description: "Turn meeting recordings into searchable, structured knowledge.",
 };
 
