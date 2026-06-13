@@ -16,6 +16,13 @@ checkable action-item list, and a searchable archive you can ask questions of.
   agent that answers natural-language questions and cites the meetings it used.
 - **Analytics**: speaking time per participant, meeting frequency, action-item
   completion rate, and recurring topics across the archive.
+- **Live recording**: capture straight from the microphone in the browser and feed
+  the same pipeline (record, then send).
+- **Manage the archive**: rename meetings, add/edit/delete action items, archive and
+  restore meetings (soft delete), set a title and key terms at upload time.
+
+The interface is an editorial "Record" design system: warm paper, a humanist serif
+for headings, a grotesque for body, and mono for transcript metadata.
 
 See `SPEC.md` for the spec and `STRATEGY.md` for schema, storage, and test decisions.
 
@@ -106,5 +113,8 @@ backend/
     models.py       SQLAlchemy ORM
   alembic/          migrations
   tests/            unit, integration, e2e
-frontend/           Next.js app (meetings, transcript, search, analytics)
+frontend/
+  app/              pages: meetings, meeting detail, record, search, analytics
+  components/ui/    design system: primitives, toasts, dialog
+  lib/              api client, types, formatting
 ```
