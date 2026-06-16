@@ -16,6 +16,7 @@ class Settings(BaseSettings):
     openai_embedding_model: str = "text-embedding-3-small"
     deepgram_api_key: str
     max_upload_mb: int = 200
+    frontend_origin: str = "http://localhost:3000"
 
     @property
     def async_database_url(self) -> str:

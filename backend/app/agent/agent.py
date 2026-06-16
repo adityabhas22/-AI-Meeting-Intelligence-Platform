@@ -3,12 +3,14 @@ session memory, tracing on by default. Returns the answer plus the chunks the to
 surfaced so the API can show citations."""
 
 from agents import Agent, Runner, set_default_openai_key
+from agents.extensions.memory.sqlalchemy_session import SQLAlchemySession
 from agents.memory.session import Session
 from pydantic import BaseModel
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.agent.tools import Deps, search_archive
 from app.config import get_settings
+from app.db import engine
 from app.retrieval.retriever import Embedder, RetrievedChunk
 
 _INSTRUCTIONS = (
@@ -38,6 +40,12 @@ def build_agent(model: str | None = None) -> Agent:
         model=model or get_settings().openai_model,
         tools=[search_archive],
     )
+
+
+def build_agent_session(session_id: str) -> SQLAlchemySession:
+    """Postgres-backed conversation memory, so follow-up questions keep context.
+    Reuses the app engine; the SDK creates its own tables on first use."""
+    return SQLAlchemySession(session_id, engine=engine, create_tables=True)
 
 
 class AnswerResult(BaseModel):

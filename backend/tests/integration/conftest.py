@@ -22,9 +22,61 @@ from sqlalchemy.ext.asyncio import AsyncSession  # noqa: E402
 from testcontainers.postgres import PostgresContainer  # noqa: E402
 
 from app.db import build_engine  # noqa: E402
+from app.extraction.schema import ExtractedActionItem, MeetingExtraction  # noqa: E402
+from app.transcription.models import TranscriptionResult, TranscriptSegment  # noqa: E402
 
 BACKEND_DIR = Path(__file__).resolve().parents[2]
 ALEMBIC = BACKEND_DIR / ".venv" / "bin" / "alembic"
+
+
+def fake_transcribe(audio: bytes, *, keyterms: list[str] | None = None) -> TranscriptionResult:
+    return TranscriptionResult(
+        segments=[
+            TranscriptSegment(
+                idx=0,
+                speaker_label=0,
+                start_sec=0.0,
+                end_sec=5.0,
+                text="We will ship Friday. Bob, can you deploy the auth fix?",
+            ),
+            TranscriptSegment(
+                idx=1,
+                speaker_label=1,
+                start_sec=5.0,
+                end_sec=10.0,
+                text="Yes, I will deploy the auth fix by Friday.",
+            ),
+        ],
+        duration_sec=10.0,
+        language="en",
+    )
+
+
+def fake_extract(transcript: str) -> MeetingExtraction:
+    return MeetingExtraction(
+        title="Release planning",
+        overview="The team agreed to ship on Friday.",
+        attendees=["Alice", "Bob"],
+        key_decisions=["Ship Friday"],
+        discussion_points=["Auth fix"],
+        open_questions=[],
+        next_steps=["Review metrics next week"],
+        action_items=[ExtractedActionItem(task="Deploy the auth fix", owner="Bob", due="Friday")],
+        topics=["auth", "release"],
+    )
+
+
+def fake_embed(texts: list[str]) -> list[list[float]]:
+    return [[0.1] * 1536 for _ in texts]
+
+
+@pytest.fixture
+def pipeline_fakes() -> dict:
+    return {
+        "transcribe_fn": fake_transcribe,
+        "extract_fn": fake_extract,
+        "embed_fn": fake_embed,
+    }
 
 
 @pytest.fixture(scope="session")
