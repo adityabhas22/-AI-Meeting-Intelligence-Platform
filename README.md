@@ -1,7 +1,7 @@
 # Meeting Intelligence Platform
 
 Turn a meeting recording into a speaker-labelled transcript, a structured summary, a
-checkable action-item list, and a searchable archive you can ask questions of.
+checkable action-item list, and a searchable archive you can ask questions of with a great accuracy and intelligence.
 
 ## What it does
 
