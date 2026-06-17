@@ -14,7 +14,7 @@ from app.transcription.parser import parse_deepgram_response
 # vocabulary (nova-3 only). smart_format handles numbers, dates, and the like.
 _BASE_OPTIONS: dict[str, Any] = {
     "model": "nova-3",
-    "diarize": True,
+    "diarize_model": "latest",  # batch diarization v2; enables and supersedes `diarize`
     "smart_format": True,
     "punctuate": True,
     "utterances": True,

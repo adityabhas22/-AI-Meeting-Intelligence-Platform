@@ -36,7 +36,7 @@ def test_transcribe_sends_expected_options_and_parses_result():
     sent = fake.media.captured
     assert sent["request"] == b"audio-bytes"
     assert sent["model"] == "nova-3"
-    assert sent["diarize"] is True
+    assert sent["diarize_model"] == "latest"
     assert sent["utterances"] is True
     assert sent["keyterm"] == ["gRPC", "OAuth2"]
     assert result.num_speakers == 2
