@@ -1,3 +1,5 @@
+import pytest
+
 from app.transcription.deepgram import transcribe
 
 RESPONSE = {
@@ -47,3 +49,9 @@ def test_transcribe_omits_keyterm_when_not_provided():
     fake = _FakeClient(RESPONSE)
     transcribe(b"audio", client=fake)
     assert "keyterm" not in fake.media.captured
+
+
+def test_transcribe_raises_on_response_without_results():
+    fake = _FakeClient({"request_id": "abc-123"})  # async/accepted shape, no results
+    with pytest.raises(ValueError, match="no transcription results"):
+        transcribe(b"audio", client=fake)

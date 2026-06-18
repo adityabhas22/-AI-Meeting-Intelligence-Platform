@@ -260,10 +260,11 @@ function SpeakersCard({
   async function save() {
     setSaving(true);
     try {
-      const filled = Object.fromEntries(
-        Object.entries(names).filter(([, v]) => v.trim()).map(([k, v]) => [Number(k), v.trim()]),
+      // Send every speaker (including blanks) so a name can also be cleared.
+      const payload = Object.fromEntries(
+        Object.entries(names).map(([k, v]) => [Number(k), v.trim()]),
       );
-      const updated = await api.renameSpeakers(meeting.id, filled);
+      const updated = await api.renameSpeakers(meeting.id, payload);
       onChange(updated);
     } finally {
       setSaving(false);

@@ -41,7 +41,12 @@ def transcribe(
         request_options={"timeout_in_seconds": _REQUEST_TIMEOUT_SECONDS},
         **options,
     )
-    return parse_deepgram_response(_to_dict(response))
+    data = _to_dict(response)
+    if "results" not in data:
+        # Async/callback responses carry no results; our flow is synchronous, so treat
+        # that as an error rather than silently producing an empty transcript.
+        raise ValueError("Deepgram returned no transcription results")
+    return parse_deepgram_response(data)
 
 
 def _to_dict(response: Any) -> dict:

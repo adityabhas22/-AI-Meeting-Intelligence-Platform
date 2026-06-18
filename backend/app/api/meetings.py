@@ -1,4 +1,5 @@
 import uuid
+from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
 from sqlalchemy import func, select
@@ -14,6 +15,28 @@ from app.models import ActionItem, Meeting, Speaker
 
 router = APIRouter(prefix="/meetings", tags=["meetings"])
 
+_AUDIO_EXTS = {
+    ".wav",
+    ".mp3",
+    ".m4a",
+    ".aac",
+    ".ogg",
+    ".oga",
+    ".opus",
+    ".flac",
+    ".webm",
+    ".mp4",
+    ".mov",
+    ".mpeg",
+    ".mpga",
+}
+
+
+def _looks_like_audio(filename: str, content_type: str | None) -> bool:
+    if (content_type or "").lower().startswith(("audio/", "video/")):
+        return True
+    return Path(filename).suffix.lower() in _AUDIO_EXTS
+
 
 @router.post("", response_model=schemas.UploadResponse, status_code=202)
 async def upload_meeting(
@@ -21,6 +44,12 @@ async def upload_meeting(
     session: AsyncSession = Depends(get_session),
     runner: PipelineRunner = Depends(get_pipeline_runner),
 ) -> schemas.UploadResponse:
+    name = file.filename or "audio"
+    if not _looks_like_audio(name, file.content_type):
+        raise HTTPException(
+            status_code=415, detail="unsupported file type; upload an audio or video recording"
+        )
+
     audio = await file.read()
     if not audio:
         raise HTTPException(status_code=400, detail="empty upload")
@@ -30,7 +59,6 @@ async def upload_meeting(
             status_code=413, detail=f"file exceeds {get_settings().max_upload_mb} MB limit"
         )
 
-    name = file.filename or "audio"
     meeting = Meeting(title=name, filename=name)
     session.add(meeting)
     await session.commit()
@@ -91,7 +119,7 @@ async def rename_speakers(
     by_label = {s.label: s for s in speakers}
     for label, name in body.names.items():
         if label in by_label:
-            by_label[label].display_name = name
+            by_label[label].display_name = name.strip() or None
     await session.commit()
 
     meeting = await _load_meeting(session, meeting_id)

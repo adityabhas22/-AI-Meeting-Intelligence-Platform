@@ -7,9 +7,11 @@ rollback transaction as well as a real background-task session.
 """
 
 import asyncio
+import logging
 import uuid
 from collections.abc import Callable
 
+from sqlalchemy import update
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.extraction.extractor import extract_meeting
@@ -24,6 +26,30 @@ from app.transcription.models import TranscriptionResult
 TranscribeFn = Callable[..., TranscriptionResult]
 ExtractFn = Callable[..., MeetingExtraction]
 EmbedFn = Callable[[list[str]], list[list[float]]]
+
+logger = logging.getLogger(__name__)
+
+_PROCESSING_STATUSES = [
+    MeetingStatus.uploaded,
+    MeetingStatus.transcribing,
+    MeetingStatus.extracting,
+    MeetingStatus.indexing,
+]
+
+
+async def fail_stranded_meetings(session: AsyncSession) -> int:
+    """Mark meetings stuck in a processing state (from a previous crash/restart) as
+    failed, so they don't poll forever. Returns the number recovered."""
+    result = await session.execute(
+        update(Meeting)
+        .where(Meeting.status.in_(_PROCESSING_STATUSES))
+        .values(
+            status=MeetingStatus.failed,
+            error="Processing was interrupted by a server restart.",
+        )
+    )
+    await session.commit()
+    return result.rowcount or 0
 
 
 async def run_pipeline(
@@ -40,12 +66,25 @@ async def run_pipeline(
     if meeting is None:
         raise ValueError(f"meeting {meeting_id} not found")
 
+    logger.info("pipeline start: meeting=%s bytes=%d", meeting_id, len(audio))
     try:
         meeting.status = MeetingStatus.transcribing
         await session.commit()
 
         result = await asyncio.to_thread(transcribe_fn, audio, keyterms=keyterms)
+        if not result.segments:
+            meeting.status = MeetingStatus.failed
+            meeting.error = "No speech detected in the recording."
+            await session.commit()
+            logger.warning("pipeline aborted: meeting=%s had no speech", meeting_id)
+            return
         _save_transcript(session, meeting, result)
+        logger.info(
+            "transcribed: meeting=%s segments=%d speakers=%d",
+            meeting_id,
+            len(result.segments),
+            result.num_speakers,
+        )
 
         meeting.status = MeetingStatus.extracting
         await session.commit()
@@ -63,7 +102,9 @@ async def run_pipeline(
 
         meeting.status = MeetingStatus.done
         await session.commit()
+        logger.info("pipeline done: meeting=%s", meeting_id)
     except Exception as exc:
+        logger.exception("pipeline failed: meeting=%s", meeting_id)
         await session.rollback()
         meeting = await session.get(Meeting, meeting_id)
         if meeting is not None:

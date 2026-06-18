@@ -104,3 +104,25 @@ async def test_missing_meeting_returns_404(api_client: AsyncClient):
 async def test_empty_upload_rejected(api_client: AsyncClient):
     resp = await api_client.post("/meetings", files={"file": ("empty.m4a", b"", "audio/m4a")})
     assert resp.status_code == 400
+
+
+async def test_non_audio_upload_rejected(api_client: AsyncClient):
+    resp = await api_client.post(
+        "/meetings", files={"file": ("notes.txt", b"hello world", "text/plain")}
+    )
+    assert resp.status_code == 415
+
+
+async def test_ready_probe_checks_db(api_client: AsyncClient):
+    resp = await api_client.get("/ready")
+    assert resp.status_code == 200
+    assert resp.json()["status"] == "ready"
+
+
+async def test_speaker_name_can_be_cleared(api_client: AsyncClient):
+    mid = await _upload(api_client)
+    await api_client.patch(f"/meetings/{mid}/speakers", json={"names": {"0": "Alice"}})
+    resp = await api_client.patch(f"/meetings/{mid}/speakers", json={"names": {"0": ""}})
+    assert resp.status_code == 200
+    names = {s["label"]: s["display_name"] for s in resp.json()["speakers"]}
+    assert names[0] is None
