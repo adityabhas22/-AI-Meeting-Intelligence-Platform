@@ -126,3 +126,57 @@ async def test_speaker_name_can_be_cleared(api_client: AsyncClient):
     assert resp.status_code == 200
     names = {s["label"]: s["display_name"] for s in resp.json()["speakers"]}
     assert names[0] is None
+
+
+async def _ids(client: AsyncClient) -> set[str]:
+    return {m["id"] for m in (await client.get("/meetings")).json()}
+
+
+async def test_delete_archives_and_hides_meeting(api_client: AsyncClient):
+    mid = await _upload(api_client)
+    assert mid in await _ids(api_client)
+
+    resp = await api_client.delete(f"/meetings/{mid}")
+    assert resp.status_code == 204
+    assert mid not in await _ids(api_client)
+    assert (await api_client.get(f"/meetings/{mid}")).status_code == 404
+    assert (await api_client.delete(f"/meetings/{mid}")).status_code == 404  # already gone
+
+
+async def test_restore_brings_meeting_back(api_client: AsyncClient):
+    mid = await _upload(api_client)
+    await api_client.delete(f"/meetings/{mid}")
+    resp = await api_client.post(f"/meetings/{mid}/restore")
+    assert resp.status_code == 200
+    assert mid in await _ids(api_client)
+
+
+async def test_rename_meeting(api_client: AsyncClient):
+    mid = await _upload(api_client)
+    resp = await api_client.patch(f"/meetings/{mid}", json={"title": "Q3 Planning"})
+    assert resp.status_code == 200
+    assert resp.json()["title"] == "Q3 Planning"
+
+
+async def test_add_and_delete_action_item(api_client: AsyncClient):
+    mid = await _upload(api_client)
+    created = await api_client.post(
+        f"/meetings/{mid}/action-items", json={"task": "Book the venue", "owner": "Me"}
+    )
+    assert created.status_code == 201
+    aid = created.json()["id"]
+    items = (await api_client.get(f"/meetings/{mid}")).json()["action_items"]
+    assert any(a["id"] == aid for a in items)
+
+    deleted = await api_client.delete(f"/action-items/{aid}")
+    assert deleted.status_code == 204
+    items = (await api_client.get(f"/meetings/{mid}")).json()["action_items"]
+    assert all(a["id"] != aid for a in items)
+
+
+async def test_archived_meeting_excluded_from_analytics(api_client: AsyncClient):
+    mid = await _upload(api_client)
+    before = (await api_client.get("/analytics")).json()["total_meetings"]
+    await api_client.delete(f"/meetings/{mid}")
+    after = (await api_client.get("/analytics")).json()["total_meetings"]
+    assert after == before - 1

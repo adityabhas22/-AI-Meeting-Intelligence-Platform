@@ -59,11 +59,13 @@ async def speaking_time(
     stmt = (
         select(participant.label("participant"), duration.label("seconds"))
         .select_from(Segment)
+        .join(Meeting, Meeting.id == Segment.meeting_id)
         .join(
             Speaker,
             and_(Speaker.meeting_id == Segment.meeting_id, Speaker.label == Segment.speaker_label),
             isouter=True,
         )
+        .where(Meeting.deleted_at.is_(None))
         .group_by(participant)
         .order_by(duration.desc())
     )
@@ -74,9 +76,15 @@ async def speaking_time(
 
 
 async def get_analytics(session: AsyncSession) -> AnalyticsSummary:
-    total_meetings = (await session.execute(select(func.count(Meeting.id)))).scalar_one()
+    live = Meeting.deleted_at.is_(None)
+
+    total_meetings = (
+        await session.execute(select(func.count(Meeting.id)).where(live))
+    ).scalar_one()
     total_duration = (
-        await session.execute(select(func.coalesce(func.sum(Meeting.duration_sec), 0.0)))
+        await session.execute(
+            select(func.coalesce(func.sum(Meeting.duration_sec), 0.0)).where(live)
+        )
     ).scalar_one()
 
     total_items, completed_items = (
@@ -85,6 +93,9 @@ async def get_analytics(session: AsyncSession) -> AnalyticsSummary:
                 func.count(ActionItem.id),
                 func.count(ActionItem.id).filter(ActionItem.completed),
             )
+            .select_from(ActionItem)
+            .join(Meeting, Meeting.id == ActionItem.meeting_id)
+            .where(live)
         )
     ).one()
     rate = (completed_items / total_items) if total_items else 0.0
@@ -92,13 +103,18 @@ async def get_analytics(session: AsyncSession) -> AnalyticsSummary:
     week = func.date_trunc("week", Meeting.created_at)
     freq_rows = (
         await session.execute(
-            select(week.label("period"), func.count(Meeting.id)).group_by(week).order_by(week)
+            select(week.label("period"), func.count(Meeting.id))
+            .where(live)
+            .group_by(week)
+            .order_by(week)
         )
     ).all()
 
     topic_rows = (
         await session.execute(
             select(MeetingTopic.topic, func.count(MeetingTopic.id))
+            .join(Meeting, Meeting.id == MeetingTopic.meeting_id)
+            .where(live)
             .group_by(MeetingTopic.topic)
             .order_by(func.count(MeetingTopic.id).desc())
             .limit(TOP_TOPICS)

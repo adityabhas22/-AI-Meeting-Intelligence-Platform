@@ -1,4 +1,5 @@
 import uuid
+from datetime import UTC, datetime
 from pathlib import Path
 
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
@@ -79,6 +80,7 @@ async def list_meetings(
         await session.execute(
             select(Meeting, func.coalesce(counts.c.c, 0))
             .outerjoin(counts, counts.c.meeting_id == Meeting.id)
+            .where(Meeting.deleted_at.is_(None))
             .order_by(Meeting.created_at.desc())
         )
     ).all()
@@ -127,11 +129,68 @@ async def rename_speakers(
     return _to_detail(meeting, talk)
 
 
+@router.patch("/{meeting_id}", response_model=schemas.MeetingDetail)
+async def update_meeting(
+    meeting_id: uuid.UUID,
+    body: schemas.MeetingUpdate,
+    session: AsyncSession = Depends(get_session),
+) -> schemas.MeetingDetail:
+    meeting = await _load_meeting(session, meeting_id)
+    if body.title is not None and body.title.strip():
+        meeting.title = body.title.strip()
+    await session.commit()
+    talk = await speaking_time(session, meeting_id)
+    return _to_detail(meeting, talk)
+
+
+@router.delete("/{meeting_id}", status_code=204)
+async def delete_meeting(
+    meeting_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> None:
+    meeting = await session.get(Meeting, meeting_id)
+    if meeting is None or meeting.deleted_at is not None:
+        raise HTTPException(status_code=404, detail="meeting not found")
+    meeting.deleted_at = datetime.now(UTC)  # soft delete: archived, recoverable
+    await session.commit()
+
+
+@router.post("/{meeting_id}/restore", response_model=schemas.MeetingDetail)
+async def restore_meeting(
+    meeting_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> schemas.MeetingDetail:
+    meeting = await session.get(Meeting, meeting_id)
+    if meeting is None:
+        raise HTTPException(status_code=404, detail="meeting not found")
+    meeting.deleted_at = None
+    await session.commit()
+    meeting = await _load_meeting(session, meeting_id)
+    talk = await speaking_time(session, meeting_id)
+    return _to_detail(meeting, talk)
+
+
+@router.post("/{meeting_id}/action-items", response_model=schemas.ActionItemOut, status_code=201)
+async def add_action_item(
+    meeting_id: uuid.UUID,
+    body: schemas.ActionItemCreate,
+    session: AsyncSession = Depends(get_session),
+) -> schemas.ActionItemOut:
+    meeting = await _load_meeting(session, meeting_id)
+    next_idx = max((a.idx for a in meeting.action_items), default=-1) + 1
+    item = ActionItem(
+        meeting_id=meeting_id, idx=next_idx, task=body.task, owner=body.owner, due=body.due
+    )
+    session.add(item)
+    await session.commit()
+    return schemas.ActionItemOut(
+        id=item.id, task=item.task, owner=item.owner, due=item.due, completed=item.completed
+    )
+
+
 async def _load_meeting(session: AsyncSession, meeting_id: uuid.UUID) -> Meeting:
     meeting = (
         await session.execute(
             select(Meeting)
-            .where(Meeting.id == meeting_id)
+            .where(Meeting.id == meeting_id, Meeting.deleted_at.is_(None))
             .options(
                 selectinload(Meeting.speakers),
                 selectinload(Meeting.segments),

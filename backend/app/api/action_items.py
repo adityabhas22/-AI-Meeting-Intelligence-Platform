@@ -25,3 +25,14 @@ async def update_action_item(
     return schemas.ActionItemOut(
         id=item.id, task=item.task, owner=item.owner, due=item.due, completed=item.completed
     )
+
+
+@router.delete("/{item_id}", status_code=204)
+async def delete_action_item(
+    item_id: uuid.UUID, session: AsyncSession = Depends(get_session)
+) -> None:
+    item = await session.get(ActionItem, item_id)
+    if item is None:
+        raise HTTPException(status_code=404, detail="action item not found")
+    await session.delete(item)
+    await session.commit()

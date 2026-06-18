@@ -39,9 +39,12 @@ async def hybrid_search(
     embed = embed or embed_texts
     query_vector = embed([query])[0]
 
+    live = Meeting.deleted_at.is_(None)
     semantic_ids = (
         await session.scalars(
             select(TranscriptChunk.id)
+            .join(Meeting, Meeting.id == TranscriptChunk.meeting_id)
+            .where(live)
             .order_by(TranscriptChunk.embedding.cosine_distance(query_vector))
             .limit(candidates)
         )
@@ -51,7 +54,8 @@ async def hybrid_search(
     keyword_ids = (
         await session.scalars(
             select(TranscriptChunk.id)
-            .where(TranscriptChunk.ts.bool_op("@@")(tsquery))
+            .join(Meeting, Meeting.id == TranscriptChunk.meeting_id)
+            .where(TranscriptChunk.ts.bool_op("@@")(tsquery), live)
             .order_by(func.ts_rank_cd(TranscriptChunk.ts, tsquery).desc())
             .limit(candidates)
         )

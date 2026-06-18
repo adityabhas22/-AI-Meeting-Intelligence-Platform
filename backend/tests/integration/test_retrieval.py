@@ -62,3 +62,14 @@ async def test_returns_vector_hits_when_no_keyword_match(db_session: AsyncSessio
 async def test_empty_archive_returns_nothing(db_session: AsyncSession):
     results = await hybrid_search(db_session, "anything", embed=lambda _t: [_unit_vector(0)])
     assert results == []
+
+
+async def test_archived_meeting_chunks_excluded_from_search(db_session: AsyncSession):
+    from datetime import UTC, datetime
+
+    meeting = await _seed(db_session)
+    meeting.deleted_at = datetime.now(UTC)
+    await db_session.commit()
+
+    results = await hybrid_search(db_session, "kubernetes", embed=lambda _t: [_unit_vector(0)])
+    assert results == []

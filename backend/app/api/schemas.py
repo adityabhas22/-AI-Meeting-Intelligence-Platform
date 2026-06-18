@@ -84,6 +84,16 @@ class ActionItemUpdate(BaseModel):
     due: str | None = None
 
 
+class ActionItemCreate(BaseModel):
+    task: str
+    owner: str | None = None
+    due: str | None = None
+
+
+class MeetingUpdate(BaseModel):
+    title: str | None = None
+
+
 class AskRequest(BaseModel):
     question: str
     session_id: str | None = None

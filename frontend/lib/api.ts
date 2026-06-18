@@ -21,6 +21,7 @@ async function http<T>(path: string, init?: RequestInit): Promise<T> {
     }
     throw new Error(detail);
   }
+  if (res.status === 204) return undefined as T;
   return res.json() as Promise<T>;
 }
 
@@ -51,6 +52,19 @@ export const api = {
 
   updateActionItem: (itemId: string, patch: Partial<Pick<ActionItem, "completed" | "task" | "owner" | "due">>) =>
     http<ActionItem>(`/action-items/${itemId}`, jsonInit("PATCH", patch)),
+
+  addActionItem: (meetingId: string, body: { task: string; owner?: string | null; due?: string | null }) =>
+    http<ActionItem>(`/meetings/${meetingId}/action-items`, jsonInit("POST", body)),
+
+  deleteActionItem: (itemId: string) =>
+    http<void>(`/action-items/${itemId}`, { method: "DELETE" }),
+
+  renameMeeting: (id: string, title: string) =>
+    http<MeetingDetail>(`/meetings/${id}`, jsonInit("PATCH", { title })),
+
+  deleteMeeting: (id: string) => http<void>(`/meetings/${id}`, { method: "DELETE" }),
+
+  restoreMeeting: (id: string) => http<MeetingDetail>(`/meetings/${id}/restore`, { method: "POST" }),
 
   ask: (question: string, sessionId?: string) =>
     http<AskResponse>("/ask", jsonInit("POST", { question, session_id: sessionId })),
