@@ -2,7 +2,7 @@ import uuid
 from datetime import UTC, datetime
 from pathlib import Path
 
-from fastapi import APIRouter, Depends, File, HTTPException, UploadFile
+from fastapi import APIRouter, Depends, File, Form, HTTPException, UploadFile
 from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
@@ -39,9 +39,18 @@ def _looks_like_audio(filename: str, content_type: str | None) -> bool:
     return Path(filename).suffix.lower() in _AUDIO_EXTS
 
 
+def _parse_keyterms(raw: str | None) -> list[str]:
+    if not raw:
+        return []
+    parts = (term.strip() for chunk in raw.splitlines() for term in chunk.split(","))
+    return list(dict.fromkeys(t for t in parts if t))[:50]
+
+
 @router.post("", response_model=schemas.UploadResponse, status_code=202)
 async def upload_meeting(
     file: UploadFile = File(...),
+    title: str | None = Form(None),
+    keyterms: str | None = Form(None),
     session: AsyncSession = Depends(get_session),
     runner: PipelineRunner = Depends(get_pipeline_runner),
 ) -> schemas.UploadResponse:
@@ -60,10 +69,10 @@ async def upload_meeting(
             status_code=413, detail=f"file exceeds {get_settings().max_upload_mb} MB limit"
         )
 
-    meeting = Meeting(title=name, filename=name)
+    meeting = Meeting(title=(title or "").strip() or name, filename=name)
     session.add(meeting)
     await session.commit()
-    await runner(meeting.id, audio)
+    await runner(meeting.id, audio, _parse_keyterms(keyterms))
     return schemas.UploadResponse(id=meeting.id, status=meeting.status)
 
 

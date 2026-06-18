@@ -1,69 +1,166 @@
 import { useRef, useState } from "react";
-import { api } from "@/lib/api";
+import { Button, SectionLabel, TextInput } from "@/components/ui/primitives";
+import { useToast } from "@/components/ui/Toast";
+import { cn } from "@/lib/cn";
+
+const BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+function humanSize(bytes: number): string {
+  if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(0)} KB`;
+  return `${(bytes / 1024 / 1024).toFixed(1)} MB`;
+}
 
 export function UploadZone({ onUploaded }: { onUploaded: () => void }) {
-  const [busy, setBusy] = useState(false);
-  const [dragging, setDragging] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const toast = useToast();
   const inputRef = useRef<HTMLInputElement>(null);
+  const [file, setFile] = useState<File | null>(null);
+  const [title, setTitle] = useState("");
+  const [keyterms, setKeyterms] = useState("");
+  const [dragging, setDragging] = useState(false);
+  const [progress, setProgress] = useState<number | null>(null);
 
-  async function upload(file: File) {
-    setBusy(true);
-    setError(null);
-    try {
-      await api.upload(file);
-      onUploaded();
-    } catch (e) {
-      setError((e as Error).message);
-    } finally {
-      setBusy(false);
-    }
+  function reset() {
+    setFile(null);
+    setTitle("");
+    setKeyterms("");
+    setProgress(null);
   }
 
+  function upload() {
+    if (!file) return;
+    const form = new FormData();
+    form.append("file", file);
+    if (title.trim()) form.append("title", title.trim());
+    if (keyterms.trim()) form.append("keyterms", keyterms.trim());
+
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", `${BASE}/meetings`);
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) setProgress(Math.round((e.loaded / e.total) * 100));
+    };
+    xhr.onload = () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        toast("Uploaded. Processing has started.", "success");
+        reset();
+        onUploaded();
+      } else {
+        let detail = "Upload failed";
+        try {
+          detail = JSON.parse(xhr.responseText).detail ?? detail;
+        } catch {
+          /* keep default */
+        }
+        toast(detail, "error");
+        setProgress(null);
+      }
+    };
+    xhr.onerror = () => {
+      toast("Could not reach the server", "error");
+      setProgress(null);
+    };
+    setProgress(0);
+    xhr.send(form);
+  }
+
+  const uploading = progress !== null;
+
   return (
-    <div>
-      <div
-        onDragOver={(e) => {
-          e.preventDefault();
-          setDragging(true);
+    <div
+      onDragOver={(e) => {
+        e.preventDefault();
+        setDragging(true);
+      }}
+      onDragLeave={() => setDragging(false)}
+      onDrop={(e) => {
+        e.preventDefault();
+        setDragging(false);
+        const dropped = e.dataTransfer.files?.[0];
+        if (dropped) setFile(dropped);
+      }}
+      className={cn(
+        "rounded-xl border bg-surface transition-colors",
+        dragging ? "border-accent bg-accent-soft/40" : "border-line",
+      )}
+    >
+      {!file ? (
+        <button
+          onClick={() => inputRef.current?.click()}
+          className="flex w-full flex-col items-center justify-center gap-1 px-6 py-12 text-center"
+        >
+          <span className="font-display text-lg text-ink">Drop a recording to begin</span>
+          <span className="text-sm text-muted">or click to choose a file</span>
+          <span className="label mt-2">wav · mp3 · m4a · webm</span>
+        </button>
+      ) : (
+        <div className="p-5">
+          <div className="flex items-center justify-between gap-3">
+            <div className="min-w-0">
+              <p className="truncate font-medium text-ink">{file.name}</p>
+              <p className="label mt-0.5">{humanSize(file.size)}</p>
+            </div>
+            {!uploading && (
+              <Button variant="ghost" size="sm" onClick={reset}>
+                Change
+              </Button>
+            )}
+          </div>
+
+          {uploading ? (
+            <div className="mt-4">
+              <div className="h-1.5 overflow-hidden rounded-full bg-line">
+                <div
+                  className="h-full rounded-full bg-accent transition-all"
+                  style={{ width: `${progress}%` }}
+                />
+              </div>
+              <p className="label mt-2">
+                {progress! < 100 ? `Uploading ${progress}%` : "Processing on the server"}
+              </p>
+            </div>
+          ) : (
+            <div className="mt-4 grid gap-3 sm:grid-cols-2">
+              <label className="block">
+                <SectionLabel>Title (optional)</SectionLabel>
+                <TextInput
+                  className="mt-1"
+                  placeholder="e.g. Q3 Planning"
+                  value={title}
+                  onChange={(e) => setTitle(e.target.value)}
+                />
+              </label>
+              <label className="block">
+                <SectionLabel>Key terms (optional)</SectionLabel>
+                <TextInput
+                  className="mt-1"
+                  placeholder="Kubernetes, OAuth, pgvector"
+                  value={keyterms}
+                  onChange={(e) => setKeyterms(e.target.value)}
+                />
+              </label>
+              <div className="sm:col-span-2">
+                <Button onClick={upload} className="w-full sm:w-auto">
+                  Transcribe meeting
+                </Button>
+                <p className="mt-2 text-xs text-muted">
+                  Key terms sharpen transcription of names and technical vocabulary.
+                </p>
+              </div>
+            </div>
+          )}
+        </div>
+      )}
+
+      <input
+        ref={inputRef}
+        type="file"
+        accept="audio/*,video/*,.wav,.mp3,.m4a,.webm"
+        className="hidden"
+        onChange={(e) => {
+          const chosen = e.target.files?.[0];
+          if (chosen) setFile(chosen);
+          e.target.value = "";
         }}
-        onDragLeave={() => setDragging(false)}
-        onDrop={(e) => {
-          e.preventDefault();
-          setDragging(false);
-          const file = e.dataTransfer.files?.[0];
-          if (file) upload(file);
-        }}
-        onClick={() => inputRef.current?.click()}
-        className={`flex cursor-pointer flex-col items-center justify-center rounded-xl border-2 border-dashed px-6 py-10 text-center transition-colors ${
-          dragging
-            ? "border-indigo-400 bg-indigo-50"
-            : "border-zinc-300 bg-white hover:border-zinc-400"
-        }`}
-      >
-        <input
-          ref={inputRef}
-          type="file"
-          accept="audio/*,.wav,.mp3,.m4a"
-          className="hidden"
-          onChange={(e) => {
-            const file = e.target.files?.[0];
-            if (file) upload(file);
-            e.target.value = "";
-          }}
-        />
-        {busy ? (
-          <p className="text-sm font-medium text-zinc-700">Uploading and processing…</p>
-        ) : (
-          <>
-            <p className="text-sm font-medium text-zinc-700">
-              Drop a meeting recording, or click to choose
-            </p>
-            <p className="mt-1 text-xs text-zinc-400">wav, mp3, or m4a</p>
-          </>
-        )}
-      </div>
-      {error && <p className="mt-2 text-sm text-red-600">{error}</p>}
+      />
     </div>
   );
 }

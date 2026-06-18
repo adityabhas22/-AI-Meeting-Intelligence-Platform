@@ -18,7 +18,7 @@ async def api_client(db_session: AsyncSession, pipeline_fakes) -> AsyncIterator[
     async def override_session():
         yield db_session
 
-    async def fake_runner(meeting_id, audio):
+    async def fake_runner(meeting_id, audio, keyterms=None):
         await run_pipeline(db_session, meeting_id, audio, **pipeline_fakes)
 
     async def fake_answer(question, session, *, agent_session=None):

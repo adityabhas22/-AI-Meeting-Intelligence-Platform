@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Card, SectionLabel, Skeleton } from "@/components/ui/primitives";
 import { api } from "@/lib/api";
 import { formatDuration } from "@/lib/format";
 import type { Analytics } from "@/lib/types";
@@ -16,22 +17,40 @@ export default function AnalyticsPage() {
       .catch((e) => setError((e as Error).message));
   }, []);
 
-  if (error) return <Shell>Could not load analytics: {error}</Shell>;
-  if (!data) return <Shell>Loading…</Shell>;
+  return (
+    <div className="mx-auto max-w-5xl px-8 py-12">
+      <header className="rise mb-8">
+        <SectionLabel>Across the archive</SectionLabel>
+        <h1 className="mt-1 font-display text-4xl tracking-tight text-ink">Analytics</h1>
+        <p className="mt-2 text-sm leading-relaxed text-muted">
+          Patterns in how the team meets, decides, and follows through.
+        </p>
+      </header>
 
+      {error && <p className="text-sm text-failed">Could not load analytics: {error}</p>}
+
+      {!data ? (
+        <div className="grid gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <Skeleton key={i} className="h-24" />
+          ))}
+        </div>
+      ) : (
+        <Loaded data={data} />
+      )}
+    </div>
+  );
+}
+
+function Loaded({ data }: { data: Analytics }) {
   const completion = Math.round(data.action_items.rate * 100);
   const maxTalk = Math.max(...data.talk_time.map((t) => t.seconds), 1);
   const maxWeek = Math.max(...data.meetings_per_week.map((w) => w.count), 1);
   const maxTopic = Math.max(...data.top_topics.map((t) => t.count), 1);
 
   return (
-    <div className="mx-auto max-w-5xl px-8 py-10">
-      <header className="mb-8">
-        <h1 className="text-2xl font-semibold tracking-tight text-zinc-900">Analytics</h1>
-        <p className="mt-1 text-sm text-zinc-500">Trends across the whole meeting archive.</p>
-      </header>
-
-      <div className="grid grid-cols-1 gap-4 sm:grid-cols-3">
+    <>
+      <div className="rise grid grid-cols-1 gap-4 sm:grid-cols-3">
         <Stat label="Meetings" value={String(data.total_meetings)} />
         <Stat label="Total recorded" value={formatDuration(data.total_duration_sec)} />
         <Stat
@@ -41,21 +60,21 @@ export default function AnalyticsPage() {
         />
       </div>
 
-      <div className="mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
-        <Card title="Speaking time by participant">
+      <div className="rise mt-6 grid grid-cols-1 gap-6 lg:grid-cols-2">
+        <Panel title="Speaking time by participant">
           {data.talk_time.length === 0 ? (
             <Empty />
           ) : (
             <div className="space-y-3">
               {data.talk_time.map((t) => (
                 <div key={t.participant}>
-                  <div className="flex justify-between text-xs text-zinc-500">
+                  <div className="flex justify-between text-xs text-muted">
                     <span>{t.participant}</span>
                     <span className="font-mono">{formatDuration(t.seconds)}</span>
                   </div>
-                  <div className="mt-1 h-2 rounded-full bg-zinc-100">
+                  <div className="mt-1 h-2 rounded-full bg-line">
                     <div
-                      className="h-2 rounded-full bg-indigo-500"
+                      className="h-2 rounded-full bg-accent"
                       style={{ width: `${(t.seconds / maxTalk) * 100}%` }}
                     />
                   </div>
@@ -63,9 +82,9 @@ export default function AnalyticsPage() {
               ))}
             </div>
           )}
-        </Card>
+        </Panel>
 
-        <Card title="Recurring topics">
+        <Panel title="Recurring topics">
           {data.top_topics.length === 0 ? (
             <Empty />
           ) : (
@@ -73,17 +92,17 @@ export default function AnalyticsPage() {
               {data.top_topics.map((t) => (
                 <span
                   key={t.topic}
-                  className="rounded-full bg-indigo-50 px-3 py-1 text-sm text-indigo-700"
-                  style={{ fontSize: `${0.8 + (t.count / maxTopic) * 0.5}rem` }}
+                  className="rounded-full bg-accent-soft px-3 py-1 font-mono text-accent-ink"
+                  style={{ fontSize: `${0.75 + (t.count / maxTopic) * 0.45}rem` }}
                 >
-                  {t.topic} <span className="text-indigo-400">{t.count}</span>
+                  {t.topic} <span className="text-accent/60">{t.count}</span>
                 </span>
               ))}
             </div>
           )}
-        </Card>
+        </Panel>
 
-        <Card title="Meeting frequency">
+        <Panel title="Meeting frequency">
           {data.meetings_per_week.length === 0 ? (
             <Empty />
           ) : (
@@ -91,44 +110,40 @@ export default function AnalyticsPage() {
               {data.meetings_per_week.map((w) => (
                 <div key={w.period} className="flex flex-1 flex-col items-center gap-1">
                   <div
-                    className="w-full rounded-t bg-indigo-500"
-                    style={{ height: `${(w.count / maxWeek) * 100}%` }}
+                    className="w-full rounded-t bg-accent"
+                    style={{ height: `${Math.max((w.count / maxWeek) * 100, 6)}%` }}
                     title={`${w.count} meetings`}
                   />
-                  <span className="text-[10px] text-zinc-400">{w.period.slice(5)}</span>
+                  <span className="font-mono text-[10px] text-faint">{w.period.slice(5)}</span>
                 </div>
               ))}
             </div>
           )}
-        </Card>
+        </Panel>
       </div>
-    </div>
+    </>
   );
-}
-
-function Shell({ children }: { children: React.ReactNode }) {
-  return <div className="px-8 py-10 text-sm text-zinc-400">{children}</div>;
 }
 
 function Stat({ label, value, sub }: { label: string; value: string; sub?: string }) {
   return (
-    <div className="rounded-xl border border-zinc-200 bg-white p-5">
-      <p className="text-xs font-medium uppercase tracking-wide text-zinc-400">{label}</p>
-      <p className="mt-1 text-2xl font-semibold text-zinc-900">{value}</p>
-      {sub && <p className="text-xs text-zinc-400">{sub}</p>}
-    </div>
+    <Card className="p-5">
+      <SectionLabel>{label}</SectionLabel>
+      <p className="mt-1 font-display text-3xl text-ink">{value}</p>
+      {sub && <p className="mt-0.5 text-xs text-muted">{sub}</p>}
+    </Card>
   );
 }
 
-function Card({ title, children }: { title: string; children: React.ReactNode }) {
+function Panel({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <section className="rounded-xl border border-zinc-200 bg-white p-5">
-      <h2 className="mb-4 text-sm font-semibold tracking-tight text-zinc-900">{title}</h2>
+    <Card className="p-5">
+      <SectionLabel className="mb-4">{title}</SectionLabel>
       {children}
-    </section>
+    </Card>
   );
 }
 
 function Empty() {
-  return <p className="text-sm text-zinc-400">No data yet.</p>;
+  return <p className="text-sm text-faint">No data yet.</p>;
 }

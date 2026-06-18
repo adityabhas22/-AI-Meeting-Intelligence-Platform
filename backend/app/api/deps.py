@@ -12,18 +12,18 @@ from app.agent.agent import build_agent_session as _build_agent_session
 from app.db import SessionLocal
 from app.pipeline.pipeline import run_pipeline
 
-PipelineRunner = Callable[[uuid.UUID, bytes], Awaitable[None]]
+PipelineRunner = Callable[[uuid.UUID, bytes, list[str] | None], Awaitable[None]]
 Answerer = Callable[..., Awaitable[AnswerResult]]
 
 
-async def _run_pipeline_bg(meeting_id: uuid.UUID, audio: bytes) -> None:
+async def _run_pipeline_bg(meeting_id: uuid.UUID, audio: bytes, keyterms: list[str] | None) -> None:
     async with SessionLocal() as session:
-        await run_pipeline(session, meeting_id, audio)
+        await run_pipeline(session, meeting_id, audio, keyterms=keyterms)
 
 
 def get_pipeline_runner(background_tasks: BackgroundTasks) -> PipelineRunner:
-    async def runner(meeting_id: uuid.UUID, audio: bytes) -> None:
-        background_tasks.add_task(_run_pipeline_bg, meeting_id, audio)
+    async def runner(meeting_id: uuid.UUID, audio: bytes, keyterms: list[str] | None) -> None:
+        background_tasks.add_task(_run_pipeline_bg, meeting_id, audio, keyterms)
 
     return runner
 

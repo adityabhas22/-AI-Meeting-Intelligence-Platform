@@ -137,7 +137,8 @@ def _save_transcript(session: AsyncSession, meeting: Meeting, result: Transcript
 def _save_extraction(
     session: AsyncSession, meeting: Meeting, extraction: MeetingExtraction
 ) -> None:
-    if extraction.title:
+    # Only adopt the model's title when the user did not set one (title still the filename).
+    if extraction.title and meeting.title == meeting.filename:
         meeting.title = extraction.title
     session.add(
         Summary(

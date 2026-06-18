@@ -1,8 +1,23 @@
 @import "tailwindcss";
 
-@theme inline {
-  --font-sans: var(--font-geist-sans);
-  --font-mono: var(--font-geist-mono);
+/* "The Record": warm paper, ink, a single pine accent. Editorial, calm, readable. */
+@theme {
+  --color-paper: #f5f1e8;
+  --color-surface: #fffdf7;
+  --color-ink: #1d1b16;
+  --color-muted: #7c766a;
+  --color-faint: #a8a294;
+  --color-line: #e4ddcd;
+  --color-accent: #0f5d4a;
+  --color-accent-ink: #0a4538;
+  --color-accent-soft: #e2ede7;
+  --color-done: #1f7a4d;
+  --color-processing: #b07a16;
+  --color-failed: #b23b2e;
+
+  --font-display: var(--font-fraunces), ui-serif, Georgia, serif;
+  --font-sans: var(--font-plex-sans), ui-sans-serif, system-ui, sans-serif;
+  --font-mono: var(--font-plex-mono), ui-monospace, monospace;
 }
 
 html {
@@ -10,15 +25,42 @@ html {
 }
 
 body {
-  background: #f6f6f7;
-  color: #18181b;
-  font-family: var(--font-sans), ui-sans-serif, system-ui, sans-serif;
+  background-color: var(--color-paper);
+  color: var(--color-ink);
+  font-family: var(--font-sans);
+  /* faint paper grain */
+  background-image: radial-gradient(rgba(29, 27, 22, 0.022) 1px, transparent 1px);
+  background-size: 4px 4px;
+}
+
+/* Tracked, uppercase mono labels are the editorial signature. */
+.label {
+  font-family: var(--font-mono);
+  font-size: 0.6875rem;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: var(--color-faint);
 }
 
 .scroll-slim::-webkit-scrollbar {
-  width: 8px;
+  width: 7px;
+  height: 7px;
 }
 .scroll-slim::-webkit-scrollbar-thumb {
-  background: #d4d4d8;
+  background: var(--color-line);
   border-radius: 9999px;
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.rise {
+  animation: rise 0.5s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
