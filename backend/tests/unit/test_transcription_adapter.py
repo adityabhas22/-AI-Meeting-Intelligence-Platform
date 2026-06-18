@@ -38,6 +38,7 @@ def test_transcribe_sends_expected_options_and_parses_result():
     assert sent["model"] == "nova-3"
     assert sent["diarize_model"] == "latest"
     assert sent["utterances"] is True
+    assert sent["request_options"]["timeout_in_seconds"] == 600
     assert sent["keyterm"] == ["gRPC", "OAuth2"]
     assert result.num_speakers == 2
 

@@ -21,6 +21,10 @@ _BASE_OPTIONS: dict[str, Any] = {
     "paragraphs": True,
 }
 
+# The SDK defaults to ~60s, which is not enough to upload a large file and wait for a
+# long recording to transcribe. Allow up to 10 minutes per request.
+_REQUEST_TIMEOUT_SECONDS = 600
+
 
 def transcribe(
     audio: bytes,
@@ -32,7 +36,11 @@ def transcribe(
     options = dict(_BASE_OPTIONS)
     if keyterms:
         options["keyterm"] = keyterms
-    response = client.listen.v1.media.transcribe_file(request=audio, **options)
+    response = client.listen.v1.media.transcribe_file(
+        request=audio,
+        request_options={"timeout_in_seconds": _REQUEST_TIMEOUT_SECONDS},
+        **options,
+    )
     return parse_deepgram_response(_to_dict(response))
 
 
